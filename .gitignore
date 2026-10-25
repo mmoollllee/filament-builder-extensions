@@ -1,0 +1,7 @@
+vendor
+node_modules
+.phpunit.result*
+.phpunit.cache
+*.psd
+.DS_Store
+/tests/Browser/Screenshots

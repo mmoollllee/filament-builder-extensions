@@ -1,0 +1,7 @@
+{
+    "private": true,
+    "description": "Playwright for the browser tests (pestphp/pest-plugin-browser).",
+    "devDependencies": {
+        "playwright": "1.62.1"
+    }
+}
