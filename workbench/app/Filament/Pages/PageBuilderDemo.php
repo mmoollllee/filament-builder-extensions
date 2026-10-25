@@ -14,7 +14,7 @@ class PageBuilderDemo extends Page
 
     protected static string|UnitEnum|null $navigationGroup = 'Lists';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 3;
 
     protected static ?string $title = 'Builder: blocks between sections';
 

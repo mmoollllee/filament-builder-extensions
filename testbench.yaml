@@ -2,7 +2,8 @@ providers:
   - Mmoollllee\FilamentBuilderExtensions\FilamentBuilderExtensionsServiceProvider
   - Workbench\App\Providers\AdminPanelProvider
 
-migrations: true
+migrations:
+  - workbench/database/migrations
 
 seeders:
   - Workbench\Database\Seeders\DatabaseSeeder

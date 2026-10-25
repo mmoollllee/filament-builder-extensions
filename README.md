@@ -5,7 +5,7 @@ Opt-in tools for the items of Filament **Builder** and **Repeater** fields:
 | Tool | Use it with | What it does |
 | --- | --- | --- |
 | [Titles](#titles) | `->title('field')` on a `Block` or `Repeater` | an editable title in the item's header instead of its label |
-| [Transfer](#dragging-items-between-lists) | `->transferGroup('name')` on a `Builder` or `Repeater` | drag items between lists of the same group, nested lists included |
+| [Transfer](#dragging-items-between-lists) | `->transferGroup('name')` on a `Builder` or `Repeater` | drag items between lists of the same group, nested lists included; a relationship's record keeps its row |
 | [Clipboard](#copy-and-paste) | `CopyItemAction`, `PasteItemAction` | copy an item and paste it into another list, record or tab |
 | [Keyboard](#keyboard-c--v) | `->clipboardShortcuts()` on a `Builder` or `Repeater` | ⌘C / ⌘V on a selected item, with the list's own copy and paste actions |
 | [Adding from outside](#adding-items-from-outside-the-field) | `Items::add()`, `Items::beside()` | add an item from an action beside the list, its fields at their defaults |
@@ -81,15 +81,51 @@ Every list of a group — here, the positions of every section — accepts the i
 The drop is carried out on the server by the target list's `transferItem` action, mounted as Filament mounts its own reorder. It checks both lists against the form before it moves anything:
 
 - both are fields of the same form, of the same kind (Builder or Repeater) and in the same group, and both are reorderable by drag and drop (so neither is disabled);
-- the source is deletable: an item that leaves a list is deleted there — a relationship's record with it, on save. A list with `->deletable(false)` gives no item away (it cannot even be dragged out), but takes the others';
+- the source is deletable: an item that leaves a list is gone from it, as if deleted there (a relationship's record goes along, see [below](#relationship-repeaters)). A list with `->deletable(false)` gives no item away (it cannot even be dragged out), but takes the others';
 - the item is one of the source's;
 - a Builder offers the item's block, as its block picker would (not once the block is there as often as its own `maxItems()` allows), and the target is not at its `maxItems()`.
 
-A drop the target cannot take (a block it does not offer, a full list) puts the item back and says so. The item keeps its key and its state; for relationship repeaters, saving deletes it from the old parent and creates it under the new one. Where the target holds the item's key already — a copy or a clone of the item's list keeps the keys of the items in it — the item takes a key of its own there.
+A drop the target cannot take (a block it does not offer, a full list) puts the item back and says so. The item keeps its key and its state, and a relationship's record its row. Where the target holds the item's key already — a copy or a clone of the item's list keeps the keys of the items in it — the item takes a key of its own there.
 
 Lists only exchange items within a group and within one Livewire component. The group can be a closure (`->transferGroup(fn (Get $get) => …)`); `null` turns the tool off.
 
 The macro puts its attributes on the field's wrapper through `extraAttributes(…, merge: true)`. Call `->extraAttributes()` after it with `merge: true` too, or it replaces them and the list leaves its group.
+
+### Relationship repeaters
+
+A record dragged into another relationship repeater of its group is saved there as the same row, under its new parent. It keeps its id and the columns its item has no field for — the contract a position bills, the line it was copied from —, and whatever refers to it still does.
+
+```php
+Repeater::make('sections')
+    ->relationship()
+    ->orderColumn('sort')
+    ->schema([
+        Hidden::make('title'),
+        Repeater::make('positions')
+            ->relationship()
+            ->orderColumn('sort')
+            ->transferGroup('positions')
+            ->schema([/* … */]),
+    ]);
+```
+
+Left to itself, Filament would save the move as a deletion and a new row: it saves a relationship repeater by its keys, deleting an existing record whose key `record-N` is missing from the state and creating one for a key that names none of its records.
+
+The drop keeps the item's key, so the save tells a move from the form's state alone, though the drop and the save are separate requests: `record-N` is missing from a list of the group that holds the record N, and present in another list of the same model. Right before the first list of the group saves, all of them are read. Then the list the record left does not delete it, and the first list holding its key to save takes it over: it puts the record under its own parent (its foreign key, and a morph type) and Filament updates it as one of its own records — with the item's state, the order column, `mutateRelationshipDataBeforeSaveUsing()` and `afterUpdate()`. The item's own relationships — a repeater inside it, tags, files — save with the record. It does not matter which of the two lists saves first, nor whether the new parent was added before saving.
+
+How: the macro gives a relationship repeater a `saveRelationshipsBeforeChildrenUsing()` callback, which runs right before the list's items and the list itself save. It only tells Filament's own `saveToRelationship()`, through the records the list caches, which records are the list's; Filament does all the saving. The other ways in fall short:
+
+- a `saveRelationshipsUsing()` of the package's: `->relationship()` sets that callback, and replaces the package's when it is called after `->transferGroup()`. And it runs only after the list's items have saved their own relationships: a moved item, new to the list until then, would have skipped its own;
+- a deletion the list a record left defers until another list of the group has taken it: a form's save has no moment after its last list to run it in, and a record its new list took first is no longer the old list's to delete anyway.
+
+What stays as Filament saves it:
+
+- Keys no list left — clones, pastes, new items — are created. A list cloned with the item still in it holds the item's key too: the first list to save takes the record, the other one's item is created.
+- A record dragged out of an item that is deleted in the same save — positions dragged out of a section that is then removed — is not traced: the list it left is no longer in the form. The moved item is created where it was dropped, and the record goes with its old parent. Save before removing the emptied item.
+- Until the form is saved, the moved item is new to its list: what asks for its record — `unique(ignoreRecord: true)`, a field shown on new items only — gets none.
+- `BelongsToMany` repeaters, moves between lists of different models, plain repeaters and builders.
+
+A `saveRelationshipsBeforeChildrenUsing()` of your own on the list replaces the package's when set after `->transferGroup()`.
 
 ## Copy and paste
 
@@ -207,7 +243,7 @@ npx playwright install chromium    # …and the browser it drives
 composer serve                     # builds the workbench and serves it
 ```
 
-Open http://localhost:8000/login (credentials prefilled). The pages under "Lists" show the transfer, clipboard and add tools on Repeaters (positions between an invoice's sections) and Builders (blocks between a page's sections, one block kind refused, one image per section at most); the pages under "Titles" show the titles, the repeater page also in a modal.
+Open http://localhost:8000/login (credentials prefilled). The pages under "Lists" show the transfer, clipboard and add tools on Repeaters (positions between an invoice's sections, also as a document's rows, saved to the database) and Builders (blocks between a page's sections, one block kind refused, one image per section at most); the pages under "Titles" show the titles, the repeater page also in a modal.
 
 ```bash
 composer test                   # all tests

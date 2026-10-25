@@ -16,7 +16,9 @@ use Mmoollllee\FilamentBuilderExtensions\FilamentBuilderExtensionsServiceProvide
  * carries the group, the field's key and its state path; the script (builder-extensions.js)
  * joins the group's lists into one SortableJS group when a handle is pressed, and a drop
  * into another list mounts the target's `transferItem` action ({@see TransferItemAction}),
- * which checks both lists against the form and moves the item in its state.
+ * which checks both lists against the form and moves the item in its state. On save, a
+ * relationship repeater takes over a record dragged into it, under its own parent
+ * ({@see TransferredRecords}).
  */
 final class TransferGroup
 {
@@ -38,6 +40,15 @@ final class TransferGroup
                 $this->registerActions([
                     fn (): TransferItemAction => TransferItemAction::make(),
                 ]);
+
+                // A relationship's record dragged in is saved here as the same row. Not through a
+                // `saveRelationshipsUsing()` of its own: `->relationship()` sets that, and it runs
+                // only once the items have saved their own relationships (see the README).
+                if ($this instanceof Repeater) {
+                    $this->saveRelationshipsBeforeChildrenUsing(static function (Repeater $component): void {
+                        TransferredRecords::assign($component);
+                    });
+                }
 
                 return $this;
             });

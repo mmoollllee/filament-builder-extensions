@@ -19,8 +19,9 @@ use Mmoollllee\FilamentBuilderExtensions\Items;
  *
  * None of it is taken on trust. The source has to be a field of the same form, of the same
  * kind and in the same group, both lists have to be reorderable and the source deletable —
- * an item that leaves it is deleted there, a relationship's record with it on save —, the
- * item has to be one of the source's, and a Builder has to offer the item's block. Then the
+ * an item that leaves it is gone from it as if deleted; a relationship's record goes along,
+ * saved as the same row under its new parent ({@see TransferredRecords}) —, the item has to
+ * be one of the source's, and a Builder has to offer the item's block. Then the
  * item leaves the one state for the other, its key kept — unless the target holds that key
  * already, as a copy or a clone of the item's list does: then it takes a key of its own
  * there —, and both lists take the order the browser shows; keys they leave out go last. A

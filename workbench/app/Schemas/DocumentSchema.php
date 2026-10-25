@@ -13,6 +13,7 @@ use Filament\Support\Icons\Heroicon;
 use Mmoollllee\FilamentBuilderExtensions\Clipboard\CopyItemAction;
 use Mmoollllee\FilamentBuilderExtensions\Clipboard\PasteItemAction;
 use Mmoollllee\FilamentBuilderExtensions\Items;
+use Workbench\App\Models\Document;
 
 /**
  * Repeaters inside a repeater, as an invoice's sections hold its positions: a position is
@@ -26,19 +27,24 @@ final class DocumentSchema
     public const POSITION = 'workbench.position';
 
     /**
+     * With `$relationships`, the sections and positions are a {@see Document}'s rows, saved
+     * through relationship repeaters: a position dragged into another section is saved there
+     * as the same row.
+     *
      * @return array<Component>
      */
-    public static function components(): array
+    public static function components(bool $relationships = false): array
     {
         return [
             Repeater::make('sections')
+                ->when($relationships, fn (Repeater $repeater): Repeater => $repeater->relationship()->orderColumn('sort'))
                 ->hiddenLabel()
                 ->collapsible()
                 ->addable(false)
                 ->title('title', placeholder: 'Untitled section')
                 ->schema([
                     Hidden::make('title'),
-                    self::positions(),
+                    self::positions($relationships),
                     Actions::make([
                         self::addAction('addPosition', 'Add position')
                             ->action(fn (Actions $component) => Items::add(Items::beside($component, 'positions'))),
@@ -84,9 +90,10 @@ final class DocumentSchema
         ];
     }
 
-    private static function positions(): Repeater
+    private static function positions(bool $relationships): Repeater
     {
         return Repeater::make('positions')
+            ->when($relationships, fn (Repeater $repeater): Repeater => $repeater->relationship()->orderColumn('sort'))
             ->hiddenLabel()
             ->collapsible()
             ->addable(false)

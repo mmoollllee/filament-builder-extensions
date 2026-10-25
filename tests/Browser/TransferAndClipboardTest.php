@@ -2,13 +2,16 @@
 
 /**
  * The tools in Chromium, where SortableJS, Filament's reordering and the clipboard live:
- * items dragged into another list of their group — an empty one included —, a drop the
- * target refuses, and an item copied in one list and pasted into another.
+ * items dragged into another list of their group — an empty one included, a relationship's
+ * record saved there as the same row —, a drop the target refuses, and an item copied in
+ * one list and pasted into another.
  */
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Pest\Browser\Playwright\Playwright;
+use Workbench\App\Models\Document;
+use Workbench\App\Models\Position;
 use Workbench\Database\Factories\UserFactory;
 
 uses(RefreshDatabase::class);
@@ -48,6 +51,28 @@ it('moves a position into an empty section, where a zone stands in for its list'
     expect(waitForTitles($page, $empty, ['Camera rental']))->toBe(['Camera rental'])
         ->and(titlesShown($page, $hardware))->toBe(['Mounting'])
         ->and($page->script("document.querySelectorAll('.fi-be-drop-zone').length"))->toBe(0);
+
+    $page->assertNoJavaScriptErrors();
+});
+
+it('saves a position dragged into another section as the same row there', function (): void {
+    $document = Document::sample();
+    $camera = Position::query()->where('title', 'Camera rental')->sole();
+
+    $page = visit('/document-records', ['viewport' => ['width' => 1400, 'height' => 1400]])
+        ->assertSee('Add position');
+
+    [$hardware, $options] = listsOf($page, 'positions');
+
+    dragInSteps($page, "[data-state-path=\"{$hardware}\"] > ul > li [x-sortable-handle]", "[data-state-path=\"{$options}\"] > ul > li .fi-fo-repeater-item-header");
+
+    expect(waitForTitles($page, $options, ['Camera rental', 'SIM card']))->toBe(['Camera rental', 'SIM card']);
+
+    $page->click('Save')
+        ->assertSee('Saved');
+
+    expect($camera->fresh()->only(['section_id', 'sort']))->toBe(['section_id' => $document->sections()->where('title', 'Options')->value('id'), 'sort' => 1])
+        ->and(Position::query()->count())->toBe(3);
 
     $page->assertNoJavaScriptErrors();
 });
